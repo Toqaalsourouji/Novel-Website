@@ -13,7 +13,15 @@ const SignupSchema = z.object({
 export async function POST(req: Request) {
     try {
         const body = await req.json();
-        const data = SignupSchema.parse(body);
+        const result = SignupSchema.safeParse(body);
+        if (!result.success) {
+            return NextResponse.json(
+                { ok: false, error: "Validation failed", issues: result.error.issues },
+                { status: 400 }
+            );
+        }
+        const data = result.data;
+
 
         const rows = await query<{ id: string; created_at: string }>(
             `
@@ -42,6 +50,11 @@ export async function POST(req: Request) {
             );
         }
 
-        return NextResponse.json({ ok: false, error: "Invalid request." }, { status: 400 });
+        console.error(err);
+        return NextResponse.json(
+            { ok: false, error: err?.message ?? "Server error" },
+            { status: 500 }
+        );
+
     }
 }
