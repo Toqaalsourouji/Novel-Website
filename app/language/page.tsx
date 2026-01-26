@@ -45,7 +45,7 @@ export default function LanguagePage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
             <button
-              onClick={() => router.push("/age-verification")}
+              onClick={() => router.push("/main")}
               className="rounded-full bg-white/10 hover:bg-white/15 border border-white/10
                          text-white/80 py-6 text-lg tracking-[0.35em] transition"
             >

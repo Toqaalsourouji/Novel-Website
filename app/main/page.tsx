@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-type ModalType = null | "typeface" | "legal" | "social" | "support" | "typeface-item";
+type ModalType = null | "typeface" | "legal" | "social" | "support" | "typeface-item" | "age-verification";
 interface ModalData {
   title: string;
   content: string;
@@ -23,8 +24,48 @@ const typefaces = [
 ];
 
 export default function MainPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const email = searchParams.get("email");
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [modalData, setModalData] = useState<ModalData>({ title: "", content: "" });
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    // Check if age verification is already done
+    const ageVerified = sessionStorage.getItem("ageVerified");
+    if (!ageVerified || ageVerified === "false") {
+      setActiveModal("age-verification");
+    }
+  }, []);
+
+  const handleAgeVerification = async (isVerified: boolean) => {
+    setIsLoading(true);
+
+    if (isVerified) {
+      try {
+        sessionStorage.setItem("ageVerified", "true");
+        sessionStorage.setItem("ageVerificationTime", new Date().toISOString());
+
+        if (email) {
+          await fetch("/api/age-verification", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, age_verified: true }),
+          });
+        }
+
+        setActiveModal(null);
+      } catch (error) {
+        console.error("Age verification error:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      sessionStorage.setItem("ageVerified", "false");
+      router.push("/age-restricted");
+    }
+  };
 
   const openModal = (type: ModalType, data: ModalData) => {
     setModalData(data);
@@ -158,7 +199,7 @@ export default function MainPage() {
         </div>
 
         {/* MODAL OVERLAY */}
-        {activeModal && (
+        {activeModal && activeModal !== "age-verification" && (
           <div
             className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn"
             onClick={() => setActiveModal(null)}
@@ -183,6 +224,75 @@ export default function MainPage() {
               >
                 [ CLOSE ]
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* AGE VERIFICATION MODAL */}
+        {activeModal === "age-verification" && (
+          <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn">
+            <div
+              className="bg-[#0b0b0f] backdrop-blur-xl border-2 border-[#8F5CFF]/50 rounded-2xl p-10 max-w-[680px] w-full mx-4 space-y-5 animate-slideUp font-mono"
+              style={{
+                boxShadow: '0 0 40px rgba(123, 97, 255, 0.3)',
+              }}
+            >
+              {/* Header */}
+              <div>
+                <h1 className="text-[#7b61ff] text-2xl sm:text-3xl uppercase tracking-[0.25em] font-bold mb-5" style={{
+                  textShadow: '0 0 10px #7b61ff',
+                }}>
+                  72 | KV5 PROTOCOL
+                </h1>
+              </div>
+
+              {/* Story Text */}
+              <div className="space-y-4 text-[#cccccc] text-sm leading-relaxed">
+                <p>
+                  the world has collapsed, not once, but twice. a new system had took over, a system where everyone is watched. freedom is tested and submission is not an option.
+                </p>
+                <p>
+                  but when it seemed like nothing will change, few decided that they had enough, that when the slums fought and the system riveled.
+                </p>
+              </div>
+
+              {/* Age Prompt */}
+              <div className="pt-4">
+                <h2 className="text-[#7b61ff] text-xl sm:text-2xl uppercase tracking-[0.35em] font-bold text-center my-7" style={{
+                  textShadow: '0 0 8px #7b61ff',
+                }}>
+                  WHAT IS YOUR AGE?
+                </h2>
+
+                {/* Buttons */}
+                <div className="flex flex-col sm:flex-row justify-center gap-5 mb-7">
+                  <button
+                    onClick={() => handleAgeVerification(true)}
+                    disabled={isLoading}
+                    className="enter-button bg-transparent border-2 border-[#7b61ff] text-white uppercase py-3.5 px-7 text-sm tracking-[0.125em] font-bold rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-0.5"
+                    style={{
+                      textShadow: '0 0 5px #7b61ff',
+                    }}
+                  >
+                    I AM +16 | [ ENTER ]
+                  </button>
+
+                  <button
+                    onClick={() => handleAgeVerification(false)}
+                    disabled={isLoading}
+                    className="exit-button bg-transparent border-2 border-[#444] text-[#aaa] uppercase py-3.5 px-7 text-sm tracking-[0.125em] font-bold rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-0.5"
+                  >
+                    I AM -16 | [ EXIT ]
+                  </button>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="pt-4 text-[#cccccc] text-[13px] leading-relaxed text-center">
+                <p>This here is not for the <span className="text-[#7b61ff] font-bold" style={{textShadow: '0 0 6px #7b61ff'}}>Weak-minded</span> nor the <span className="text-[#7b61ff] font-bold" style={{textShadow: '0 0 6px #7b61ff'}}>Unready</span>.</p>
+                <p className="mt-2"><span className="text-[#7b61ff] font-bold" style={{textShadow: '0 0 6px #7b61ff'}}>PUNX</span> is the movement.</p>
+                <p>And the movement is <span className="text-[#7b61ff] font-bold" style={{textShadow: '0 0 6px #7b61ff'}}>PUNX</span>.</p>
+              </div>
             </div>
           </div>
         )}
@@ -215,6 +325,14 @@ export default function MainPage() {
 
         .animate-slideUp {
           animation: slideUp 0.3s ease-out;
+        }
+
+        .enter-button:hover {
+          box-shadow: 0 0 15px #7b61ff;
+        }
+
+        .exit-button:hover {
+          box-shadow: 0 0 10px #666;
         }
       `}</style>
     </main>
