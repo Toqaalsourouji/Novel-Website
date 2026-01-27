@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-type ModalType = null | "typeface" | "legal" | "social" | "support" | "typeface-item" | "age-verification";
+type ModalType = null | "typeface" | "legal" | "social" | "support" | "typeface-item" | "age-verification" | "alias-gate";
 interface ModalData {
   title: string;
   content: string;
@@ -30,12 +30,24 @@ export default function MainPage() {
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [modalData, setModalData] = useState<ModalData>({ title: "", content: "" });
   const [isLoading, setIsLoading] = useState(false);
+  const [aliasInput, setAliasInput] = useState("");
+  const [aliasError, setAliasError] = useState("");
+  const [aliasSuccess, setAliasSuccess] = useState("");
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const [showAliasGate, setShowAliasGate] = useState(false);
+  const [hasAlias, setHasAlias] = useState(false);
 
   useEffect(() => {
     // Check if age verification is already done
     const ageVerified = sessionStorage.getItem("ageVerified");
+    const userAlias = sessionStorage.getItem("userAlias");
+    
     if (!ageVerified || ageVerified === "false") {
       setActiveModal("age-verification");
+    } else if (!userAlias) {
+      setShowAliasGate(true);
+    } else {
+      setHasAlias(true);
     }
   }, []);
 
@@ -47,15 +59,9 @@ export default function MainPage() {
         sessionStorage.setItem("ageVerified", "true");
         sessionStorage.setItem("ageVerificationTime", new Date().toISOString());
 
-        if (email) {
-          await fetch("/api/age-verification", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, age_verified: true }),
-          });
-        }
-
+        // Show alias gate in main content area
         setActiveModal(null);
+        setShowAliasGate(true);
       } catch (error) {
         console.error("Age verification error:", error);
       } finally {
@@ -64,6 +70,52 @@ export default function MainPage() {
     } else {
       sessionStorage.setItem("ageVerified", "false");
       router.push("/age-restricted");
+    }
+  };
+
+  const handleAliasSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!aliasInput.trim()) return;
+
+    setIsLoading(true);
+    setAliasError("");
+    setAliasSuccess("");
+
+    try {
+      const isEmail = aliasInput.includes("@");
+      const payload = isEmail 
+        ? { email: aliasInput } 
+        : { alias: aliasInput };
+
+      const response = await fetch("/api/alias", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        sessionStorage.setItem("userAlias", data.alias);
+        
+        if (isEmail) {
+          setAliasSuccess(`Alias sent to ${aliasInput}. Check your inbox!`);
+          setTimeout(() => {
+            setShowAliasGate(false);
+            setHasAlias(true);
+          }, 2000);
+        } else {
+          setShowAliasGate(false);
+          setHasAlias(true);
+        }
+      } else {
+        setAliasError(data.error || "Failed to create alias");
+      }
+    } catch (error) {
+      console.error("Alias submission error:", error);
+      setAliasError("An error occurred. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -156,87 +208,11 @@ export default function MainPage() {
 
         {/* MAIN CONTENT */}
         <div className="flex-1 flex items-center justify-center px-6 py-8">
-          {/* Glassmorphic Panel */}
-          <div className="w-full max-w-2xl bg-black/60 backdrop-blur-xl border border-[#8F5CFF]/20 rounded-3xl p-10 space-y-8 shadow-2xl" style={{
-            boxShadow: '0 8px 32px rgba(139, 92, 246, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-          }}>
-            {/* Header */}
-            <div className="space-y-2">
-              <h1 className="text-5xl font-bold tracking-[0.15em] text-[#8F5CFF]" style={{
-                textShadow: '0 0 20px rgba(139, 92, 246, 0.5)',
-              }}>
-                72 | KVS PROTOCOL
-              </h1>
-              <div className="h-0.5 w-20 bg-gradient-to-r from-[#8F5CFF] to-transparent"></div>
-            </div>
-
-            {/* Story Text */}
-            <div className="space-y-4 text-sm leading-relaxed text-white/80 font-light">
-              <p>
-                the world has collapsed, not once, but twice. a new system had took over, a system where everyone is watched. freedom is tested and submission is not an option.
-              </p>
-              <p>
-                but when it seemed like nothing will change, few decided that they had enough, that when the slums fought and the system riveled.
-              </p>
-            </div>
-
-            {/* Divider */}
-            <div className="border-t border-[#8F5CFF]/20"></div>
-
-            {/* Footer Statement */}
-            <div className="space-y-3 text-xs text-white/60 leading-relaxed text-center">
-              <p>
-                This here is not for the <span className="text-[#8F5CFF]">Weak-minded</span> nor the <span className="text-[#8F5CFF]">Unrady</span>.
-              </p>
-              <p className="font-bold text-white">
-                <span className="text-[#8F5CFF]">PUNX</span> is the movement.
-              </p>
-              <p>
-                And the movement is <span className="text-[#8F5CFF]">PUNX</span>.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* MODAL OVERLAY */}
-        {activeModal && activeModal !== "age-verification" && (
-          <div
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn"
-            onClick={() => setActiveModal(null)}
-          >
-            <div
-              className="bg-black/80 backdrop-blur-xl border border-[#8F5CFF]/30 rounded-2xl p-8 max-w-lg w-full mx-4 space-y-4 animate-slideUp"
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                boxShadow: '0 8px 32px rgba(139, 92, 246, 0.15)',
-              }}
-            >
-              <h2 className="text-2xl font-bold text-[#8F5CFF] tracking-[0.1em]">
-                {modalData.title}
-              </h2>
-              <div className="h-0.5 w-12 bg-[#8F5CFF]/50"></div>
-              <p className="text-white/70 text-sm leading-relaxed whitespace-pre-wrap">
-                {modalData.content}
-              </p>
-              <button
-                onClick={() => setActiveModal(null)}
-                className="w-full mt-6 px-4 py-2 border border-[#8F5CFF] text-[#8F5CFF] uppercase text-xs font-bold tracking-widest rounded-lg hover:bg-[#8F5CFF]/10 transition"
-              >
-                [ CLOSE ]
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* AGE VERIFICATION MODAL */}
-        {activeModal === "age-verification" && (
-          <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn">
-            <div
-              className="bg-[#0b0b0f] backdrop-blur-xl border-2 border-[#8F5CFF]/50 rounded-2xl p-10 max-w-[680px] w-full mx-4 space-y-5 animate-slideUp font-mono"
-              style={{
-                boxShadow: '0 0 40px rgba(123, 97, 255, 0.3)',
-              }}
-            >
+          {/* Show Age Verification if not verified */}
+          {activeModal === "age-verification" ? (
+            <div className="w-full max-w-2xl bg-[#0b0b0f] backdrop-blur-xl border-2 border-[#8F5CFF]/50 rounded-2xl p-10 space-y-5 animate-slideUp font-mono" style={{
+              boxShadow: '0 0 40px rgba(123, 97, 255, 0.3)',
+            }}>
               {/* Header */}
               <div>
                 <h1 className="text-[#7b61ff] text-2xl sm:text-3xl uppercase tracking-[0.25em] font-bold mb-5" style={{
@@ -294,6 +270,183 @@ export default function MainPage() {
                 <p>And the movement is <span className="text-[#7b61ff] font-bold" style={{textShadow: '0 0 6px #7b61ff'}}>PUNX</span>.</p>
               </div>
             </div>
+          ) : showAliasGate ? (
+            /* Show Alias Gate if verified but no alias */
+            <div className="w-full max-w-2xl bg-[rgba(0,0,0,0.65)] backdrop-blur-xl border-2 border-[#8f4bff]/50 rounded-3xl p-10 space-y-6 animate-slideUp" style={{
+              boxShadow: '0 0 40px rgba(143, 75, 255, 0.3)',
+            }}>
+              {/* Header */}
+              <div>
+                <h1 className="text-[#7b3cff] text-2xl sm:text-3xl uppercase tracking-[0.25em] font-bold mb-5" style={{
+                  textShadow: '0 0 10px #a678ff',
+                }}>
+                  72 | KVS PROTOCOL
+                </h1>
+              </div>
+
+              {/* Story Text */}
+              <div className="space-y-4 text-[#e6e6e6] text-sm leading-loose">
+                <p>
+                  the world has collapsed, not once, but twice. a new system had took over, a system where everyone is watched. freedom is tested and submission is not an option.
+                </p>
+                <p>
+                  but when it seemed like nothing will change, few decided that they had enough, that when the slums fought and the system rived.
+                </p>
+              </div>
+
+              {/* Alias/Email Input Section */}
+              <div className="pt-6 space-y-6">
+                {/* Instruction Line */}
+                <div className="text-center">
+                  <p className="text-[#7b3cff] text-xs sm:text-sm uppercase tracking-[0.25em] font-bold" style={{
+                    textShadow: isInputFocused && aliasInput.includes("@") ? '0 0 12px #a678ff' : '0 0 6px #a678ff',
+                  }}>
+                    ENTER YOUR ALIAS | OR ADD YOUR <span className="text-[#e6e6e6]">[</span> <span className={`${aliasInput.includes("@") ? 'text-[#e6e6e6]' : 'text-[#e6e6e6]'}`}>EMAIL</span> <span className="text-[#e6e6e6]">]</span> TO GET ONE
+                  </p>
+                </div>
+
+                {/* Input Field */}
+                <form onSubmit={handleAliasSubmit} className="relative">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={aliasInput}
+                      onChange={(e) => setAliasInput(e.target.value)}
+                      onFocus={() => setIsInputFocused(true)}
+                      onBlur={() => setIsInputFocused(false)}
+                      placeholder="[ ALIAS ]"
+                      disabled={isLoading}
+                      className="w-full h-[68px] px-8 pr-16 bg-gradient-to-b from-[#1a1a1a] to-[#0f0f0f] border-2 border-[#7b3cff]/40 rounded-full text-[#e6e6e6] placeholder-[#e6e6e6]/50 text-center text-base sm:text-lg tracking-widest uppercase font-mono focus:outline-none focus:border-[#7b3cff] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{
+                        boxShadow: isInputFocused 
+                          ? '0 0 20px rgba(166, 120, 255, 0.4), inset 0 2px 8px rgba(0, 0, 0, 0.6)' 
+                          : 'inset 0 2px 8px rgba(0, 0, 0, 0.6)',
+                        caretColor: '#7b3cff',
+                        textShadow: isInputFocused ? '0 0 8px #a678ff' : 'none',
+                      }}
+                    />
+                    {/* Right-side indicator dot */}
+                    <div 
+                      className={`absolute right-6 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full transition-all cursor-pointer ${
+                        aliasInput.includes("@") 
+                          ? 'bg-[#7b3cff] shadow-[0_0_10px_#a678ff]' 
+                          : aliasInput.length > 0 
+                          ? 'bg-[#4ade80] shadow-[0_0_10px_#4ade80]'
+                          : 'bg-[#aaaaaa]'
+                      }`}
+                      onClick={() => !isLoading && handleAliasSubmit()}
+                    />
+                  </div>
+
+                  {/* Error Message */}
+                  {aliasError && (
+                    <p className="text-red-400 text-xs text-center mt-3 animate-fadeIn">{aliasError}</p>
+                  )}
+
+                  {/* Success Message */}
+                  {aliasSuccess && (
+                    <p className="text-[#4ade80] text-xs text-center mt-3 animate-fadeIn">{aliasSuccess}</p>
+                  )}
+
+                  {/* Email mode helper text */}
+                  {aliasInput.includes("@") && !aliasError && !aliasSuccess && (
+                    <p className="text-[#aaaaaa] text-xs text-center mt-3 animate-fadeIn">
+                      We'll send your alias to this address.
+                    </p>
+                  )}
+
+                  {/* Alias mode helper text */}
+                  {aliasInput.length > 0 && !aliasInput.includes("@") && !aliasError && !aliasSuccess && (
+                    <p className="text-[#aaaaaa] text-xs text-center mt-3 animate-fadeIn">
+                      Press Enter or click the dot to claim this alias.
+                    </p>
+                  )}
+                </form>
+              </div>
+
+              {/* Footer */}
+              <div className="pt-6 border-t border-[#8f4bff]/30 text-[#e6e6e6]/70 text-[13px] leading-relaxed text-center">
+                <p>This here is not for the <span className="text-[#7b3cff] font-bold" style={{textShadow: '0 0 6px #a678ff'}}>Weak-minded</span> nor the <span className="text-[#7b3cff] font-bold" style={{textShadow: '0 0 6px #a678ff'}}>Unrady</span>.</p>
+                <p className="mt-2"><span className="text-[#7b3cff] font-bold" style={{textShadow: '0 0 6px #a678ff'}}>PUNX</span> is the movement.</p>
+                <p>And the movement is <span className="text-[#7b3cff] font-bold" style={{textShadow: '0 0 6px #a678ff'}}>PUNX</span>.</p>
+              </div>
+
+              {/* Bottom Right Footer */}
+              <div className="text-[10px] text-[#e6e6e6]/50 tracking-wider text-right">
+                © <span className="text-[#7b3cff]" style={{textShadow: '0 0 4px #a678ff'}}>SLUMPUNX.COM</span> 2026 <span className="text-[#7b3cff]">KSH</span>
+              </div>
+            </div>
+          ) : (
+            /* Main Content - shown only after alias is set */
+            <div className="w-full max-w-2xl bg-black/60 backdrop-blur-xl border border-[#8F5CFF]/20 rounded-3xl p-10 space-y-8 shadow-2xl" style={{
+              boxShadow: '0 8px 32px rgba(139, 92, 246, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+            }}>
+              {/* Header */}
+              <div className="space-y-2">
+                <h1 className="text-5xl font-bold tracking-[0.15em] text-[#8F5CFF]" style={{
+                  textShadow: '0 0 20px rgba(139, 92, 246, 0.5)',
+                }}>
+                  72 | KVS PROTOCOL
+                </h1>
+                <div className="h-0.5 w-20 bg-gradient-to-r from-[#8F5CFF] to-transparent"></div>
+              </div>
+
+              {/* Story Text */}
+              <div className="space-y-4 text-sm leading-relaxed text-white/80 font-light">
+                <p>
+                  the world has collapsed, not once, but twice. a new system had took over, a system where everyone is watched. freedom is tested and submission is not an option.
+                </p>
+                <p>
+                  but when it seemed like nothing will change, few decided that they had enough, that when the slums fought and the system riveled.
+                </p>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t border-[#8F5CFF]/20"></div>
+
+              {/* Footer Statement */}
+              <div className="space-y-3 text-xs text-white/60 leading-relaxed text-center">
+                <p>
+                  This here is not for the <span className="text-[#8F5CFF]">Weak-minded</span> nor the <span className="text-[#8F5CFF]">Unrady</span>.
+                </p>
+                <p className="font-bold text-white">
+                  <span className="text-[#8F5CFF]">PUNX</span> is the movement.
+                </p>
+                <p>
+                  And the movement is <span className="text-[#8F5CFF]">PUNX</span>.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* MODAL OVERLAY - only for typeface/legal/social/support */}
+        {activeModal && activeModal !== "age-verification" && activeModal !== "alias-gate" && (
+          <div
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn"
+            onClick={() => setActiveModal(null)}
+          >
+            <div
+              className="bg-black/80 backdrop-blur-xl border border-[#8F5CFF]/30 rounded-2xl p-8 max-w-lg w-full mx-4 space-y-4 animate-slideUp"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                boxShadow: '0 8px 32px rgba(139, 92, 246, 0.15)',
+              }}
+            >
+              <h2 className="text-2xl font-bold text-[#8F5CFF] tracking-[0.1em]">
+                {modalData.title}
+              </h2>
+              <div className="h-0.5 w-12 bg-[#8F5CFF]/50"></div>
+              <p className="text-white/70 text-sm leading-relaxed whitespace-pre-wrap">
+                {modalData.content}
+              </p>
+              <button
+                onClick={() => setActiveModal(null)}
+                className="w-full mt-6 px-4 py-2 border border-[#8F5CFF] text-[#8F5CFF] uppercase text-xs font-bold tracking-widest rounded-lg hover:bg-[#8F5CFF]/10 transition"
+              >
+                [ CLOSE ]
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -319,6 +472,15 @@ export default function MainPage() {
           }
         }
 
+        @keyframes glowPulse {
+          0%, 100% {
+            box-shadow: 0 0 20px rgba(166, 120, 255, 0.4), inset 0 2px 8px rgba(0, 0, 0, 0.6);
+          }
+          50% {
+            box-shadow: 0 0 30px rgba(166, 120, 255, 0.6), inset 0 2px 8px rgba(0, 0, 0, 0.6);
+          }
+        }
+
         .animate-fadeIn {
           animation: fadeIn 0.3s ease-out;
         }
@@ -333,6 +495,10 @@ export default function MainPage() {
 
         .exit-button:hover {
           box-shadow: 0 0 10px #666;
+        }
+
+        input:focus {
+          animation: glowPulse 2s ease-in-out infinite;
         }
       `}</style>
     </main>
